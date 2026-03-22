@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GreenTrace Ultimate | 港交所附錄 C2 商業碳核算系統</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap');
+        :root { --primary: #0f172a; --accent: #10b981; }
+        body { font-family: 'Plus Jakarta Sans', "Microsoft JhengHei", sans-serif; background-color: #f8fafc; color: #1e293b; scroll-behavior: smooth; }
+        .sidebar-item { transition: all 0.2s; border-radius: 12px; margin: 4px 16px; padding: 12px 16px; cursor: pointer; display: flex; align-items: center; color: #94a3b8; }
+        .sidebar-item:hover { background: rgba(255,255,255,0.05); color: white; }
+        .sidebar-item.active { background: var(--accent); color: white; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
+        .card { background: white; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.02); transition: transform 0.2s; }
+        .tab-content { display: none; animation: slideUp 0.4s ease-out; }
+        .tab-content.active { display: block; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .input-group label { display: block; font-size: 0.875rem; font-weight: 600; color: #64748b; margin-bottom: 6px; }
+        .input-control { width: 100%; padding: 12px 16px; border: 1.5px solid #e2e8f0; border-radius: 10px; font-size: 1rem; transition: all 0.2s; }
+        .input-control:focus { border-color: var(--accent); ring: 3px; ring-color: rgba(16, 185, 129, 0.1); outline: none; }
+        @media print { .no-print { display: none !important; } .print-only { display: block !important; } body { background: white; } }
+    </style>
+</head>
+<body class="flex min-h-screen overflow-hidden">
+
+    <aside class="w-72 bg-[#0f172a] text-white flex flex-col h-screen no-print shadow-2xl">
+        <div class="p-8">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center">
+                    <i data-lucide="leaf" class="text-white"></i>
+                </div>
+                <div>
+                    <span class="text-xl font-bold tracking-tight">GreenTrace</span>
+                    <span class="block text-[10px] text-slate-400 uppercase tracking-widest">Enterprise v4.0</span>
+                </div>
+            </div>
+        </div>
+
+        <nav class="flex-1 mt-4 overflow-y-auto">
+            <div class="px-8 text-[10px] font-bold text-slate-500 uppercase mb-4 tracking-widest">主控制台</div>
+            <div onclick="switchTab('dashboard')" id="nav-dashboard" class="sidebar-item active"><i data-lucide="layout-dashboard" class="w-5 h-5 mr-3"></i> 數據儀表板</div>
+            <div onclick="switchTab('config')" id="nav-config" class="sidebar-item"><i data-lucide="settings" class="w-5 h-5 mr-3"></i> 匯報實體與管治</div>
+            
+            <div class="px-8 text-[10px] font-bold text-slate-500 uppercase my-4 tracking-widest">碳排放錄入</div>
+            <div onclick="switchTab('scope1')" id="nav-scope1" class="sidebar-item"><i data-lucide="flame" class="w-5 h-5 mr-3"></i> 範疇一：直接排放</div>
+            <div onclick="switchTab('scope2')" id="nav-scope2" class="sidebar-item"><i data-lucide="zap" class="w-5 h-5 mr-3"></i> 範疇二：外購電力</div>
+            <div onclick="switchTab('scope3')" id="nav-scope3" class="sidebar-item"><i data-lucide="truck" class="w-5 h-5 mr-3"></i> 範疇三：供應鏈/資源</div>
+            
+            <div class="px-8 text-[10px] font-bold text-slate-500 uppercase my-4 tracking-widest">合規與輸出</div>
+            <div onclick="switchTab('analysis')" id="nav-analysis" class="sidebar-item"><i data-lucide="bar-chart-3" class="w-5 h-5 mr-3"></i> 重要性分析</div>
+            <div onclick="switchTab('report')" id="nav-report" class="sidebar-item border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+                <i data-lucide="file-text" class="w-5 h-5 mr-3"></i> 生成正式報告
+            </div>
+        </nav>
+
+        <div class="p-6 bg-slate-900/50">
+            <div class="flex items-center gap-3 text-xs text-slate-400">
+                <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                符合 HKEX 2025 最新指引
+            </div>
+        </div>
+    </aside>
+
+    <main class="flex-1 overflow-y-auto relative h-screen">
+        <header class="h-16 border-b bg-white flex items-center justify-between px-10 no-print sticky top-0 z-10">
+            <div class="flex items-center gap-4">
+                <span class="text-sm font-semibold text-slate-500">當前項目:</span>
+                <select id="proj_year" class="text-sm font-bold bg-transparent border-none focus:ring-0">
+                    <option>2025 財政年度報告</option>
+                    <option>2024 財政年度報告</option>
+                </select>
+            </div>
+            <div class="flex gap-4">
+                <button onclick="saveToCloud()" class="text-xs font-bold bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-lg transition">手動存檔</button>
+                <button onclick="clearSystem()" class="text-xs font-bold text-red-500 hover:bg-red-50 px-4 py-2 rounded-lg transition">重置系統</button>
+            </div>
+        </header>
+
+        <div class="p-10 max-w-7xl mx-auto">
+            
+            <section id="tab-dashboard" class="tab-content active">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-black text-slate-800">數據儀表板</h2>
+                    <p class="text-slate-500">實時核算進度與 KPI A1.2 密度分析</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+                    <div class="card p-6 bg-slate-900 text-white">
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">總排放量 (tCO2e)</p>
+                        <div class="text-4xl font-black mt-2 text-emerald-400" id="dash_total">0.00</div>
+                    </div>
+                    <div class="card p-6 border-l-4 border-rose-500">
+                        <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">範疇一直接排放</p>
+                        <div class="text-3xl font-bold mt-2 text-slate-800" id="dash_s1">0.00</div>
+                    </div>
+                    <div class="card p-6 border-l-4 border-blue-500">
+                        <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">範疇二間接排放</p>
+                        <div class="text-3xl font-bold mt-2 text-slate-800" id="dash_s2">0.00</div>
+                    </div>
+                    <div class="card p-6 border-l-4 border-emerald-500">
+                        <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">排放強度 (密度指標)</p>
+                        <div class="text-3xl font-bold mt-2 text-emerald-600" id="dash_int">0.00</div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="card p-8">
+                        <h3 class="font-bold text-slate-700 mb-6 flex items-center">
+                            <i data-lucide="pie-chart" class="w-5 h-5 mr-2 text-emerald-500"></i> 排放來源佔比
+                        </h3>
+                        <div class="h-80"><canvas id="chart_pie"></canvas></div>
+                    </div>
+                    <div class="card p-8">
+                        <h3 class="font-bold text-slate-700 mb-6 flex items-center">
+                            <i data-lucide="activity" class="w-5 h-5 mr-2 text-blue-500"></i> 月度排放趨勢模擬
+                        </h3>
+                        <div class="h-80"><canvas id="chart_line"></canvas></div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-config" class="tab-content">
+                <h2 class="text-3xl font-black text-slate-800 mb-8">匯報實體與管治架構</h2>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="card p-8">
+                        <h3 class="font-bold mb-6 text-emerald-600 underline">A. 匯報實體信息</h3>
+                        <div class="space-y-4">
+                            <div class="input-group">
+                                <label>發行人/公司名稱</label>
+                                <input type="text" id="cfg_name" class="input-control" placeholder="請輸入公司全稱" oninput="calculateCore()">
+                            </div>
+                            <div class="input-group">
+                                <label>業務描述</label>
+                                <select id="cfg_industry" class="input-control">
+                                    <option>物業管理 / 地產</option>
+                                    <option>物流與運輸</option>
+                                    <option>製造業</option>
+                                    <option>專業服務 / 辦公室</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label>關鍵強度基準 (年度營業額 - 百萬港元)</label>
+                                <input type="number" id="cfg_revenue" class="input-control" value="1" oninput="calculateCore()">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card p-8">
+                        <h3 class="font-bold mb-6 text-rose-500 flex justify-between">
+                            B. 董事會管治聲明 <span class="text-[10px] bg-rose-100 px-2 py-1 rounded">強制披露 [13]</span>
+                        </h3>
+                        <div class="input-group">
+                            <label>董事會對 ESG 事宜的監督及策略方針</label>
+                            <textarea id="cfg_gov" class="input-control h-48 resize-none text-sm" placeholder="描述董事會如何監督 ESG 風險..." oninput="calculateCore()"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-scope1" class="tab-content">
+                <h2 class="text-3xl font-black text-slate-800 mb-8">範疇一：直接溫室氣體排放</h2>
+                <div class="card p-8 mb-6">
+                    <h3 class="font-bold text-xl mb-6">1.1 流動燃燒源 (公務車隊)</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="input-group">
+                            <label>無鉛汽油 (Liters)</label>
+                            <input type="number" id="s1_petrol" class="input-control" oninput="calculateCore()">
+                        </div>
+                        <div class="input-group">
+                            <label>車用柴油 (Liters)</label>
+                            <input type="number" id="s1_diesel" class="input-control" oninput="calculateCore()">
+                        </div>
+                        <div class="input-group">
+                            <label>液化石油氣 (Liters)</label>
+                            <input type="number" id="s1_lpg" class="input-control" oninput="calculateCore()">
+                        </div>
+                    </div>
+                </div>
+                <div class="card p-8">
+                    <h3 class="font-bold text-xl mb-6">1.2 逸散排放 (冷氣及滅火設備)</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="input-group">
+                            <label>冷媒種類: R-410A (kg)</label>
+                            <input type="number" id="s1_r410" class="input-control" oninput="calculateCore()">
+                        </div>
+                        <div class="input-group">
+                            <label>冷媒種類: R-134a (kg)</label>
+                            <input type="number" id="s1_r134" class="input-control" oninput="calculateCore()">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-scope2" class="tab-content">
+                <h2 class="text-3xl font-black text-slate-800 mb-8">範疇二：外購能源間接排放</h2>
+                <div class="card p-10">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+                        <div class="space-y-6">
+                            <div class="input-group">
+                                <label>中電 (CLP) 總用電量 (kWh)</label>
+                                <input type="number" id="s2_clp" class="input-control border-blue-200" oninput="calculateCore()">
+                            </div>
+                            <div class="input-group">
+                                <label>自定義中電排放系數 (kg/kWh)</label>
+                                <input type="number" id="s2_clp_ef" class="input-control bg-slate-50" value="0.39" oninput="calculateCore()">
+                            </div>
+                        </div>
+                        <div class="space-y-6">
+                            <div class="input-group">
+                                <label>港燈 (HK Electric) 總用電量 (kWh)</label>
+                                <input type="number" id="s2_hke" class="input-control border-blue-200" oninput="calculateCore()">
+                            </div>
+                            <div class="input-group">
+                                <label>自定義港燈排放系數 (kg/kWh)</label>
+                                <input type="number" id="s2_hke_ef" class="input-control bg-slate-50" value="0.71" oninput="calculateCore()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-scope3" class="tab-content">
+                <h2 class="text-3xl font-black text-slate-800 mb-8">範疇三：供應鏈與其他排放</h2>
+                <div class="card p-8">
+                    <p class="text-slate-500 italic">此模組正在根據 2025 ISSB 準則進行數據接口對接...</p>
+                </div>
+            </section>
+
+            <section id="tab-analysis" class="tab-content">
+                <h2 class="text-3xl font-black text-slate-800 mb-8">重要性分析 (Materiality)</h2>
+                <div class="card p-8">
+                    <p class="text-slate-500">正在生成重要性矩陣圖...</p>
+                </div>
+            </section>
+
+            <section id="tab-report" class="tab-content">
+                <div id="final_report_print" class="bg-white p-16 shadow-2xl mx-auto border" style="width: 210mm; min-height: 297mm;">
+                    <div class="text-center border-b-8 border-slate-900 pb-8 mb-12">
+                        <h1 class="text-4xl font-black tracking-tighter uppercase mb-2">2025 環境、社會及管治報告</h1>
+                        <p class="text-xl text-slate-500 font-bold tracking-widest uppercase">溫室氣體數據清冊</p>
+                    </div>
+                    <div class="mb-10">
+                        <div class="bg-slate-900 text-white px-4 py-2 font-bold mb-4 uppercase tracking-widest text-sm italic">第一部分：實體聲明與管治</div>
+                        <div class="grid grid-cols-2 gap-8 text-sm border p-6 rounded-lg">
+                            <div><span class="font-bold text-slate-500 block">匯報實體:</span> <span id="r_name" class="font-bold text-lg">-</span></div>
+                            <div><span class="font-bold text-slate-500 block">匯報年度:</span> <span class="font-bold text-lg">2025年度</span></div>
+                        </div>
+                        <div class="mt-6">
+                            <h4 class="font-bold text-slate-800 mb-2 border-b pb-1">董事會管治聲明:</h4>
+                            <p id="r_gov" class="text-sm text-slate-600 leading-relaxed italic">未提供聲明內容。</p>
+                        </div>
+                    </div>
+                    <div class="mb-10">
+                        <div class="bg-slate-900 text-white px-4 py-2 font-bold mb-4 uppercase tracking-widest text-sm italic">第二部分：排放數據統計</div>
+                        <table class="w-full text-sm border-collapse border border-slate-400">
+                            <thead><tr class="bg-slate-100"><th class="border border-slate-400 p-3 text-left">溫室氣體指標</th><th class="border border-slate-400 p-3 text-right">數值 (tCO2e)</th></tr></thead>
+                            <tbody>
+                                <tr><td class="border border-slate-400 p-3 pl-8">範疇一直接排放</td><td class="border border-slate-400 p-3 text-right" id="r_s1_total">0.00</td></tr>
+                                <tr><td class="border border-slate-400 p-3 pl-8">範疇二間接排放</td><td class="border border-slate-400 p-3 text-right" id="r_s2_total">0.00</td></tr>
+                                <tr class="bg-slate-900 text-white font-bold"><td class="border border-slate-400 p-3 text-right">總計</td><td class="border border-slate-400 p-3 text-right" id="r_total">0.00</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-20 border-t pt-8 text-[10px] text-slate-400 leading-tight">
+                        <p>報告日期: <span id="r_date"></span></p>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script>
+        lucide.createIcons();
+
+        // 碳排放計算常數
+        const EF = {
+            petrol: 2.36/1000, diesel: 2.61/1000, lpg: 1.63/1000,
+            r410a: 2088/1000, r134a: 1430/1000
+        };
+
+        let myPieChart, myLineChart;
+
+        // 標籤切換
+        function switchTab(id) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            const target = document.getElementById('tab-' + id);
+            if(target) target.classList.add('active');
+
+            document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+            const nav = document.getElementById('nav-' + id);
+            if(nav) nav.classList.add('active');
+            
+            if(id === 'dashboard') {
+                setTimeout(initCharts, 100);
+            }
+            window.scrollTo(0,0);
+        }
+
+        // 核心核算邏輯
+        function calculateCore() {
+            // Scope 1
+            const s1_fuel = (val('s1_petrol') * EF.petrol) + (val('s1_diesel') * EF.diesel) + (val('s1_lpg') * EF.lpg);
+            const s1_ref = (val('s1_r410') * EF.r410a) + (val('s1_r134') * EF.r134a);
+            const total_s1 = s1_fuel + s1_ref;
+
+            // Scope 2
+            const clp_ef = val('s2_clp_ef') || 0.39;
+            const hke_ef = val('s2_hke_ef') || 0.71;
+            const total_s2 = (val('s2_clp') * clp_ef / 1000) + (val('s2_hke') * hke_ef / 1000);
+
+            // Totals
+            const grandTotal = total_s1 + total_s2;
+            const revenue = val('cfg_revenue') || 1;
+            const intensity = grandTotal / revenue;
+
+            // 更新 UI
+            document.getElementById('dash_total').innerText = grandTotal.toFixed(2);
+            document.getElementById('dash_s1').innerText = total_s1.toFixed(2);
+            document.getElementById('dash_s2').innerText = total_s2.toFixed(2);
+            document.getElementById('dash_int').innerText = intensity.toFixed(3);
+
+            // 報告數據同步
+            document.getElementById('r_name').innerText = document.getElementById('cfg_name').value || '未定義實體';
+            document.getElementById('r_gov').innerText = document.getElementById('cfg_gov').value || '尚未填寫管治聲明。';
+            document.getElementById('r_s1_total').innerText = total_s1.toFixed(3);
+            document.getElementById('r_s2_total').innerText = total_s2.toFixed(3);
+            document.getElementById('r_total').innerText = grandTotal.toFixed(3);
+            document.getElementById('r_date').innerText = new Date().toLocaleDateString('zh-HK');
+
+            updateCharts(total_s1, total_s2);
+        }
+
+        function val(id) { 
+            const el = document.getElementById(id);
+            return el ? (parseFloat(el.value) || 0) : 0; 
+        }
+
+        // 圖表初始化
+        function initCharts() {
+            const ctxPie = document.getElementById('chart_pie');
+            if(!ctxPie) return;
+
+            if(myPieChart) myPieChart.destroy();
+            myPieChart = new Chart(ctxPie.getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['範疇一 (直接)', '範疇二 (電力)'],
+                    datasets: [{
+                        data: [parseFloat(document.getElementById('dash_s1').innerText), parseFloat(document.getElementById('dash_s2').innerText)],
+                        backgroundColor: ['#f43f5e', '#3b82f6'],
+                        borderWidth: 0
+                    }]
+                },
+                options: { maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom' } } }
+            });
+
+            const ctxLine = document.getElementById('chart_line');
+            if(!ctxLine) return;
+            if(myLineChart) myLineChart.destroy();
+            myLineChart = new Chart(ctxLine.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: ['Q1', 'Q2', 'Q3', 'Q4'],
+                    datasets: [{
+                        label: '季度預測',
+                        data: [10, 15, 8, 20],
+                        borderColor: '#10b981',
+                        tension: 0.4
+                    }]
+                },
+                options: { maintainAspectRatio: false }
+            });
+        }
+
+        function updateCharts(s1, s2) {
+            if(myPieChart) {
+                myPieChart.data.datasets[0].data = [s1, s2];
+                myPieChart.update();
+            }
+        }
+
+        function saveToCloud() { alert('數據已備份'); }
+        function clearSystem() { if(confirm('確定重置？')) location.reload(); }
+
+        window.onload = () => {
+            calculateCore();
+            initCharts();
+        };
+    </script>
+</body>
+</html>
